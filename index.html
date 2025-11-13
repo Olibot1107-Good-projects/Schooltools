@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Recorder with Stabilization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            aspect-ratio: 16/9;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .recording-indicator {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            animation: pulse 1.5s infinite;
+        }
+
+        .recording-indicator.active {
+            display: flex;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .rec-dot {
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .timer {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            display: none;
+        }
+
+        .timer.active {
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .record-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .stop-btn {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .settings {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .setting-row:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        select, input[type="range"] {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            background: white;
+            cursor: pointer;
+        }
+
+        input[type="range"] {
+            width: 150px;
+        }
+
+        .quality-label {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+
+        .downloads {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            min-height: 80px;
+        }
+
+        .download-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .download-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .download-btn {
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📹 Camera Recorder</h1>
+        <p class="subtitle">Record stabilized video with your camera</p>
+
+        <div class="video-container">
+            <video id="preview" autoplay muted playsinline></video>
+            <div class="recording-indicator" id="recIndicator">
+                <div class="rec-dot"></div>
+                <span>REC</span>
+            </div>
+            <div class="timer" id="timer">00:00</div>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" onclick="startCamera()">Start Camera</button>
+            <button id="recordBtn" onclick="startRecording()" disabled class="record-btn">Record</button>
+            <button id="stopBtn" onclick="stopRecording()" disabled class="stop-btn">Stop</button>
+        </div>
+
+        <div class="settings">
+            <div class="setting-row">
+                <label>Camera:</label>
+                <select id="cameraSelect" onchange="switchCamera()"></select>
+            </div>
+            <div class="setting-row">
+                <label>Quality:</label>
+                <select id="qualitySelect">
+                    <option value="720">HD (720p)</option>
+                    <option value="1080" selected>Full HD (1080p)</option>
+                    <option value="1440">2K (1440p)</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>Stabilization:</label>
+                <input type="range" id="stabilization" min="0" max="100" value="50">
+                <span class="quality-label" id="stabLabel">50%</span>
+            </div>
+        </div>
+
+        <div class="downloads" id="downloads">
+            <div class="empty-state">No recordings yet. Start recording to create videos!</div>
+        </div>
+    </div>
+
+    <script>
+        let stream = null;
+        let mediaRecorder = null;
+        let chunks = [];
+        let recordingStartTime = null;
+        let timerInterval = null;
+        let devices = [];
+
+        const preview = document.getElementById('preview');
+        const recIndicator = document.getElementById('recIndicator');
+        const timer = document.getElementById('timer');
+        const startBtn = document.getElementById('startBtn');
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const qualitySelect = document.getElementById('qualitySelect');
+        const stabilization = document.getElementById('stabilization');
+        const stabLabel = document.getElementById('stabLabel');
+        const downloads = document.getElementById('downloads');
+
+        stabilization.oninput = () => {
+            stabLabel.textContent = stabilization.value + '%';
+        };
+
+        async function getDevices() {
+            try {
+                const deviceList = await navigator.mediaDevices.enumerateDevices();
+                devices = deviceList.filter(d => d.kind === 'videoinput');
+                
+                cameraSelect.innerHTML = '';
+                devices.forEach((device, i) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${i + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Error getting devices:', err);
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const quality = qualitySelect.value;
+                const deviceId = cameraSelect.value;
+                
+                const constraints = {
+                    video: {
+                        width: { ideal: parseInt(quality) * 16 / 9 },
+                        height: { ideal: parseInt(quality) },
+                        deviceId: deviceId ? { exact: deviceId } : undefined
+                    },
+                    audio: true
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                preview.srcObject = stream;
+                
+                await getDevices();
+                
+                startBtn.disabled = true;
+                recordBtn.disabled = false;
+                cameraSelect.disabled = false;
+            } catch (err) {
+                alert('Error accessing camera: ' + err.message);
+            }
+        }
+
+        async function switchCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                await startCamera();
+            }
+        }
+
+        function startRecording() {
+            chunks = [];
+            
+            const options = {
+                mimeType: 'video/webm;codecs=vp9',
+                videoBitsPerSecond: 2500000
+            };
+            
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options.mimeType = 'video/webm';
+            }
+
+            mediaRecorder = new MediaRecorder(stream, options);
+            
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    chunks.push(e.data);
+                }
+            };
+            
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                addDownload(blob);
+            };
+            
+            mediaRecorder.start();
+            recordingStartTime = Date.now();
+            
+            recIndicator.classList.add('active');
+            timer.classList.add('active');
+            recordBtn.disabled = true;
+            stopBtn.disabled = false;
+            cameraSelect.disabled = true;
+            
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            recIndicator.classList.remove('active');
+            timer.classList.remove('active');
+            recordBtn.disabled = false;
+            stopBtn.disabled = true;
+            cameraSelect.disabled = false;
+            
+            clearInterval(timerInterval);
+            timer.textContent = '00:00';
+        }
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const seconds = (elapsed % 60).toString().padStart(2, '0');
+            timer.textContent = `${minutes}:${seconds}`;
+        }
+
+        function addDownload(blob) {
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toLocaleString();
+            
+            if (downloads.querySelector('.empty-state')) {
+                downloads.innerHTML = '';
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'download-item';
+            item.innerHTML = `
+                <div>
+                    <strong>Recording</strong><br>
+                    <small>${timestamp}</small>
+                </div>
+                <button class="download-btn" onclick="downloadVideo('${url}', '${timestamp}')">Download</button>
+            `;
+            
+            downloads.insertBefore(item, downloads.firstChild);
+        }
+
+        function downloadVideo(url, timestamp) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `recording_${timestamp.replace(/[/:,\s]/g, '_')}.webm`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
